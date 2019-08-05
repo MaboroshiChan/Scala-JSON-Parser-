@@ -1,0 +1,5 @@
+package JSON
+
+class JAutomata {
+
+}

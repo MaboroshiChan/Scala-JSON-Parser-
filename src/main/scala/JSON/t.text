@@ -1,0 +1,82 @@
+{"menu": {
+  "id": "file",
+  "value": "File",
+  "popup": {
+    "menuitem": [
+      {"value": "New", "onclick": "CreateNewDoc()"},
+      {"value": "Open", "onclick": "OpenDoc()"},
+      {"value": "Close", "onclick": "CloseDoc()"}
+    ]
+  }
+}}
+The same text
+
+  def toJObject(s:String):JSON = {
+    def map(input:(JState, Int, String, JSON, JSON)):(JSON, Int)
+    = input match {
+      case (state:readName.type, index, input, x, JObject(g))=>{
+        if(s(index) == '\"'){
+          map(readColon, index + 1, input, x,JObject(g))
+        }else { // space is the other case
+          map(state, index + 1, input + s(index), x,JObject(g))
+        }
+      }
+      case (state:readColon.type, index, input, x,JObject(g))=>{
+        if(s(index) == ':'){
+          map(readQuoforJObj, index + 1, input, x,JObject(g))
+        }else{// space is the other case.
+          map(state, index + 1, input,x,JObject(g))
+        }
+      }
+      case (state:readQuoforName.type, index, input, x,JObject(g))=>{
+        if(s(index) == '\"'){ // change the state to read name
+          map(readName, index + 1, input + "\"", x,JObject(g))
+        }else{ //continue
+          map(state, index + 1, input, x,JObject(g))
+        }
+      }
+      case (state:readQuoforJObj.type, index, input, x,JObject(g)) => s(index) match {
+        case '\"'=> map(readString, index + 1, input, x,JObject(g))
+        case '{' => {
+          val tup = map(readJObj, index + 1, "", JNull,JObject(Map()))
+          val nextIndex:Int = tup._2 + 1
+          val subJObj = tup._1
+          map(readJObj, nextIndex, "", JNull, JObject(g ++ Map(input->subJObj)))
+        }
+        case '['=>{
+          val tup = map(readArray, index + 1, "", JNull, JObject(Map()))
+          val nextIndex:Int = tup._2
+          val subObject = tup._1
+          map(readArray, nextIndex, "", JNull, JObject(g ++ Map(input->subObject)))
+        }
+        case c=>{
+          if(c.isDigit) map(readJNum, index, input, JNumber(0),JObject(g))
+          else (JNull, 0)
+        }
+      }
+      case (state:readJObj.type, index, input, x,JObject(g))=>s(index) match {
+        // push back and return
+        case '}'=> (JObject(g ++ Map(input->x)), index)
+        case ','=>map(readName, index + 1, "", JNull, JObject(g ++ Map(input->x)))
+      }
+      case (state:readString.type, index, input, JString(x),JObject(g))=>s(index) match {
+        case '\"'=> map(readJObj, index + 1, input, JString(x), JObject(g))
+        case c=>map(state, index + 1, input,JString(x+c), JObject(g))
+      }
+      case (state:readJNum.type, index, input, JNumber(n), JObject(g))=> {
+        if (s(index) != ',') map(state, index + 1, input, JNumber(10 * n + s(index).toInt), JObject(g))
+        else map(readName, index + 1, "", JNull, JObject(g ++ Map(input -> JNumber(n))))
+      }
+      case (state:readArray.type, index, input, x, JArray(g))=> s(index) match {
+        case ']'=>(JArray(g ++ mutable.IndexedSeq(x)), index)
+        case ','=>map(readArray, index + 1, "", JNull, JArray(g ++ mutable.IndexedSeq(x)))
+        case '\"'=>map(readString, index + 1, input, x, JArray(g))
+        case x=>{
+          if(x.isDigit) map(readJNum, index, "", JNumber(x), JArray(g))
+          else (JNull, 0)
+        }
+      }
+    }
+    map(readJObj, 0, "", JNull,JObject(Map()))._1
+  }
+
